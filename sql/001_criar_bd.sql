@@ -27,3 +27,19 @@ CREATE TABLE clientes (
     UNIQUE KEY uq_clientes_nif (nif),
     KEY idx_clientes_nome (nome)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE equipamentos (
+    id_equipamento  INT AUTO_INCREMENT,
+    id_cliente      INT             NOT NULL,
+    tipo            VARCHAR(50)     NOT NULL,
+    marca           VARCHAR(50)     NOT NULL,
+    modelo          VARCHAR(50)     NOT NULL,
+    numero_serie    VARCHAR(100)    NOT NULL,
+    data_compra     DATE            NULL,
+    observacoes     VARCHAR(300)    NULL,
+    ativo           TINYINT(1)      NOT NULL DEFAULT 1,
+    criado_em       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                     ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id_equipamento)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
