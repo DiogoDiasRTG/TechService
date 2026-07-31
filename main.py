@@ -1,26 +1,31 @@
 from src.models.cliente import Cliente
 from src.models.equipamento import Equipamento
+from src.models.ordem_servico import OrdemServico
 from src.repositories import cliente_repository
 from src.repositories import equipamento_repository
+from src.repositories import ordem_servico_repository
 
 
 def menu():
     print("\n*** TechService - Gestão de Assistência Técnica ***")
-    print()
-    print("=== Clientes ===")
+    print("\n=== Clientes ===\n")
     print("1. Listar clientes")
     print("2. Inserir cliente")
     print("3. Procurar cliente por ID")
     print("4. Atualizar cliente")
     print("5. Remover cliente")
-    print()
-    print("=== Equipamentos ===")
+    print("\n=== Equipamentos ===\n")
     print("6. Listar equipamentos")
     print("7. Inserir equipamento")
     print("8. Procurar equipamento por ID")
     print("9. Atualizar equipamento")
     print("10. Remover equipamento")
-    print()
+    print("\n*** TechService - Gestão de Ordens de Serviço ***")
+    print("11. Listar ordens em curso")
+    print("12. Inserir ordem de serviço")
+    print("13. Procurar ordem por ID")
+    print("14. Atualizar status")
+    print("15. Ver histórico de uma ordem")
     print("0. Sair")
 
 # Clientes
@@ -155,6 +160,94 @@ def opcao_remover_equipamento():
     equipamento_repository.remover(id_equipamento)
     print("Equipamento removido com sucesso.")
 
+# Ordem de Serviço
+def opcao_listar():
+    ordens = ordem_servico_repository.listar()
+
+    if not ordens:
+        print("\nNão há ordens de serviço em curso.")
+        return
+
+    print(f"\n{len(ordens)} ordem(ns) em curso:")
+    for item in ordens:
+        atrasada = " (ATRASADA)" if item.get("atrasada", False) else ""
+        print(item["id_ordem"], "-", item["cliente_nome"], "-",
+              item["equipamento_marca"], item["equipamento_modelo"], "-",
+              item["status"], "-", item["prioridade"], "-",
+              item["defeito_relatado"] + atrasada)
+
+
+def opcao_inserir():
+    id_equipamento = input("ID do equipamento: ")
+
+    equipamento = equipamento_repository.procurar_por_id(id_equipamento)
+    if equipamento is None:
+        print("Esse equipamento não existe. Cria o equipamento primeiro.")
+        return
+
+    # o cliente é sempre encontrado a partir do equipamento, nunca
+    # pedido diretamente -- é assim que a composição funciona
+    cliente = cliente_repository.procurar_por_id(equipamento.id_cliente)
+
+    defeito_relatado = input("Defeito relatado: ")
+    prioridade = input("Prioridade (BAIXA, MEDIA, ALTA, URGENTE) [MEDIA]: ") or "MEDIA"
+
+    if prioridade not in OrdemServico.PRIORIDADES_VALIDAS:
+        print("Prioridade inválida. Ordem não foi criada.")
+        return
+
+    ordem = OrdemServico(cliente=cliente, equipamento=equipamento,
+                          defeito_relatado=defeito_relatado,
+                          prioridade=prioridade)
+    ordem = ordem_servico_repository.inserir(ordem)
+
+    print("Ordem de serviço criada com sucesso. ID:", ordem.id_ordem)
+    print("Cliente associado:", ordem.cliente.nome)
+    print("Equipamento associado:", ordem.equipamento.marca, ordem.equipamento.modelo)
+
+
+def opcao_procurar():
+    id_ordem = input("ID da ordem: ")
+    ordem = ordem_servico_repository.procurar_por_id(id_ordem)
+
+    if ordem is None:
+        print("Ordem de serviço não encontrada.")
+        return
+
+    ordem.mostrar()
+
+
+def opcao_atualizar_status():
+    id_ordem = input("ID da ordem: ")
+    ordem = ordem_servico_repository.procurar_por_id(id_ordem)
+
+    if ordem is None:
+        print("Ordem de serviço não encontrada.")
+        return
+
+    print("Status atual:", ordem.status)
+    print("Opções:", ", ".join(OrdemServico.STATUS_VALIDOS))
+    novo_status = input("Novo status: ").upper()
+
+    try:
+        ordem_servico_repository.atualizar_status(id_ordem, novo_status)
+        print("Status atualizado com sucesso.")
+    except ValueError as erro:
+        print("Não foi possível atualizar:", erro)
+
+
+def opcao_historico():
+    id_ordem = input("ID da ordem: ")
+    historico = ordem_servico_repository.listar_historico(id_ordem)
+
+    if not historico:
+        print("Sem histórico para esta ordem.")
+        return
+
+    print(f"\nHistórico da ordem {id_ordem}:")
+    for item in historico:
+        item.mostrar()
+
 # Menu principal
 def main():
     while True:
@@ -181,6 +274,16 @@ def main():
             opcao_atualizar_equipamento()
         elif opcao == "10":
             opcao_remover_equipamento()
+        elif opcao == "11":
+            opcao_listar()
+        elif opcao == "12":
+            opcao_inserir()
+        elif opcao == "13":
+            opcao_procurar()
+        elif opcao == "14":
+            opcao_atualizar_status()
+        elif opcao == "15":
+            opcao_historico()
         elif opcao == "0":
             print("A sair...")
             break
