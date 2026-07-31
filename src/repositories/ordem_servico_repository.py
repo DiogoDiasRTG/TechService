@@ -1,19 +1,25 @@
 import mysql.connector
 
 from src.database.conexao import conectar
+from src.models.historico_ordem import HistoricoOrdem
 from src.models.ordem_servico import OrdemServico
+from src.repositories import cliente_repository
+from src.repositories import equipamento_repository
 
 
 def inserir(ordem):
     conexao = conectar()
     cursor = conexao.cursor()
 
+    # A base de dados só guarda o id_equipamento (é assim que a FK
+    # funciona) -- o objeto cliente é encontrado sempre através do
+    # equipamento (equipamento.id_cliente), nunca é gravado diretamente.
     sql = """INSERT INTO ordens_servico
              (id_equipamento, id_tecnico, defeito_relatado, diagnostico, solucao,
               status, prioridade, prazo_entrega, valor_servico, valor_pecas, desconto,
               observacoes)
              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-    valores = (ordem.id_equipamento, ordem.id_tecnico, ordem.defeito_relatado,
+    valores = (ordem.equipamento.id_equipamento, ordem.id_tecnico, ordem.defeito_relatado,
                ordem.diagnostico, ordem.solucao, ordem.status, ordem.prioridade,
                ordem.prazo_entrega, ordem.valor_servico, ordem.valor_pecas,
                ordem.desconto, ordem.observacoes)
@@ -47,13 +53,13 @@ def procurar_por_id(id_ordem):
 
 
 def listar():
+    # Usa a view view_ordens_pendentes (já criada na base de dados), que
+    # junta ordem + equipamento + cliente + técnico, ordenada por
+    # atraso e prioridade -- evita repetir esse JOIN aqui em Python.
     conexao = conectar()
     cursor = conexao.cursor(dictionary=True)
 
-    sql = """SELECT * FROM ordens_servico
-             WHERE status NOT IN ('CONCLUIDA', 'CANCELADA')
-             ORDER BY data_abertura"""
-    cursor.execute(sql)
+    cursor.execute("SELECT * FROM view_ordens_pendentes")
     linhas = cursor.fetchall()
 
     cursor.close()
@@ -103,7 +109,7 @@ def listar_historico(id_ordem):
     conexao = conectar()
     cursor = conexao.cursor(dictionary=True)
 
-    sql = """SELECT status_anterior, status_novo, observacao, data_alteracao
+    sql = """SELECT status_anterior, status_novo, observacao, data_alteracao, usuario
              FROM historico_ordens_servico
              WHERE id_ordem = %s
              ORDER BY data_alteracao"""
@@ -113,12 +119,31 @@ def listar_historico(id_ordem):
     cursor.close()
     conexao.close()
 
-    return linhas
+    historico = []
+    for linha in linhas:
+        item = HistoricoOrdem(
+            id_ordem=id_ordem,
+            status_anterior=linha["status_anterior"],
+            status_novo=linha["status_novo"],
+            data_alteracao=linha["data_alteracao"],
+            observacao=linha["observacao"],
+            usuario=linha["usuario"]
+        )
+        historico.append(item)
+
+    return historico
 
 
 def linha_para_ordem(linha):
+    # A ordem, por composição, contém o Equipamento e o Cliente completos
+    # -- não só os ids. O equipamento já sabe de que cliente é (id_cliente),
+    # por isso o cliente é sempre encontrado a partir do equipamento.
+    equipamento = equipamento_repository.procurar_por_id(linha["id_equipamento"])
+    cliente = cliente_repository.procurar_por_id(equipamento.id_cliente)
+
     ordem = OrdemServico(
-        id_equipamento=linha["id_equipamento"],
+        cliente=cliente,
+        equipamento=equipamento,
         defeito_relatado=linha["defeito_relatado"],
         id_tecnico=linha["id_tecnico"],
         diagnostico=linha["diagnostico"],
